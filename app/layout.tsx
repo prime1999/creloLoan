@@ -1,15 +1,22 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Fjalla_One, Poppins } from "next/font/google";
 import "./globals.css";
+// wagmi
+import { WagmiProvider } from "wagmi";
+import { config } from "@/config";
+// react query-import
+import Providers from "./ReactQueryProvider/Providers";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const fjallaOne = Fjalla_One({
+  variable: "--fjalla-one",
   subsets: ["latin"],
+  weight: ["400"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const poppins = Poppins({
+  variable: "--poppins",
   subsets: ["latin"],
+  weight: ["400"],
 });
 
 export const metadata: Metadata = {
@@ -25,9 +32,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      className={`${fjallaOne.variable} ${poppins.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <Providers>
+          <WagmiProvider config={config}>{children}</WagmiProvider>
+        </Providers>
+      </body>
     </html>
   );
 }
