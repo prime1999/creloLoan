@@ -30,6 +30,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Calendar } from "@/components/ui/calendar";
+import { Button } from "@/components/ui/button";
 import {
   createBorrowIntentData,
   createBorrowPermitData,
@@ -74,6 +76,11 @@ const Navbar = () => {
   const [borrowAmountError, setBorrowAmountError] = useState<string | null>(
     null,
   );
+  // Optional repayment date chosen by user; time will be set to borrow-time clock.
+  const [selectedRepayDate, setSelectedRepayDate] = useState<Date | undefined>(
+    undefined,
+  );
+  const [repayDateError, setRepayDateError] = useState<string | null>(null);
 
   // --- Signing state ---------------------------------------------------
   // Tracks the borrow intent signing flow.
@@ -104,6 +111,18 @@ const Navbar = () => {
   const [isSigningPermit, setIsSigningPermit] = useState(false);
   // Stores the resulting borrow transaction hash returned after submitting to the contract.
   const [borrowTxHash, setBorrowTxHash] = useState<`0x${string}` | null>(null);
+
+  const getMaxRepayDate = () => {
+    const max = new Date();
+    max.setDate(max.getDate() + 7);
+    return max;
+  };
+
+  const isRepayDateWithinWindow = (date: Date) => {
+    const now = new Date();
+    const max = getMaxRepayDate();
+    return date >= now && date <= max;
+  };
   // Wagmi hooks provide current wallet session and connector actions.
   // Current connected wallet address and connection boolean.
   const { address, isConnected } = useAccount();
@@ -262,6 +281,8 @@ const Navbar = () => {
     if (!eligibilityResult?.eligible) return;
     setBorrowAmountInput("");
     setBorrowAmountError(null);
+    setSelectedRepayDate(undefined);
+    setRepayDateError(null);
     setDialogStep("amount");
     setSignedIntent(null);
     setSignError(null);
@@ -296,14 +317,39 @@ const Navbar = () => {
       return;
     }
 
+    if (!selectedRepayDate) {
+      setRepayDateError("Pick a repayment date first.");
+      return;
+    }
+
+    const now = new Date();
+    const deadlineDate = new Date(selectedRepayDate);
+    // Keep the selected day, but enforce the current time-of-day at borrow moment.
+    deadlineDate.setHours(
+      now.getHours(),
+      now.getMinutes(),
+      now.getSeconds(),
+      now.getMilliseconds(),
+    );
+
+    if (!isRepayDateWithinWindow(deadlineDate)) {
+      setRepayDateError("Repayment date must be within the next 7 days.");
+      return;
+    }
+
     // Move to signing state and clear any previous errors shown in the UI.
     setDialogStep("signing");
     setSignError(null);
+    setRepayDateError(null);
     setIsSigning(true);
 
     try {
       // Build the borrow-intent typed data the contract will recover.
-      const intentData = createBorrowIntentData(amount, chainId);
+      const intentData = createBorrowIntentData(
+        amount,
+        chainId,
+        Math.floor(deadlineDate.getTime() / 1000),
+      );
 
       console.log({ intentData });
 
@@ -459,6 +505,7 @@ const Navbar = () => {
           total_debt: Number(eventArgs.amount) / 1e6,
           remaining_debt: Number(eventArgs.amount) / 1e6,
           deadline: Number(eventArgs.deadline),
+          nonce: signedIntent.nonce.toString(),
           status: "borrowed",
           borrow_signature: signedIntent.signature,
           permit_v: parsedPermitSignature.v,
@@ -671,6 +718,63 @@ const Navbar = () => {
                   <p className="text-[11px] text-red-300">
                     {borrowAmountError}
                   </p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-xs text-zinc-300">
+                  Repayment Date (max 7 days)
+                </label>
+                <div className="rounded-md border border-zinc-700 bg-black/60 p-2">
+                  <Calendar
+                    mode="single"
+                    selected={selectedRepayDate}
+                    onSelect={(date) => {
+                      setSelectedRepayDate(date);
+                      if (!date) {
+                        setRepayDateError("Pick a repayment date first.");
+                        return;
+                      }
+
+                      const now = new Date();
+                      const deadlineDate = new Date(date);
+                      deadlineDate.setHours(
+                        now.getHours(),
+                        now.getMinutes(),
+                        now.getSeconds(),
+                        now.getMilliseconds(),
+                      );
+
+                      if (!isRepayDateWithinWindow(deadlineDate)) {
+                        setRepayDateError(
+                          "Repayment date must be within the next 7 days.",
+                        );
+                        return;
+                      }
+
+                      setRepayDateError(null);
+                    }}
+                    disabled={(date) => {
+                      const minDate = new Date();
+                      minDate.setHours(0, 0, 0, 0);
+
+                      const maxDate = getMaxRepayDate();
+                      maxDate.setHours(23, 59, 59, 999);
+
+                      return date < minDate || date > maxDate;
+                    }}
+                    className="rounded-md"
+                  />
+                </div>
+
+                {selectedRepayDate && !repayDateError && (
+                  <p className="text-[11px] text-zinc-400">
+                    Deadline will use this date at your borrow time.
+                  </p>
+                )}
+
+                {repayDateError && (
+                  <p className="text-[11px] text-red-300">{repayDateError}</p>
                 )}
               </div>
 

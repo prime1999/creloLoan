@@ -18,6 +18,7 @@ export async function POST(request: Request) {
       body.total_debt === undefined ||
       body.remaining_debt === undefined ||
       body.deadline === undefined ||
+      body.nonce === undefined ||
       !body.status ||
       !body.borrow_signature ||
       body.permit_v === undefined ||
@@ -36,6 +37,7 @@ export async function POST(request: Request) {
       total_debt: Number(body.total_debt),
       remaining_debt: Number(body.remaining_debt),
       deadline: Number(body.deadline),
+      nonce: String(body.nonce),
       status: body.status,
       borrow_signature: body.borrow_signature,
       permit_v: Number(body.permit_v),

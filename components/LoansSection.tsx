@@ -1,18 +1,24 @@
 "use client";
 
+import { useState } from "react";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useAccount } from "wagmi";
 import { useGetLoans } from "@/lib/queries/loansQueries";
 import LoanCard from "@/components/LoanCard";
 import { LoansSkeletonGroup } from "@/components/LoanSkeleton";
 
 const LoansSection = () => {
+  const [currentPage, setCurrentPage] = useState(1);
   const { address, isConnected } = useAccount();
   const {
-    data: loans = [],
+    data: response,
     isLoading,
     isError,
     error,
-  } = useGetLoans(address as `0x${string}` | undefined);
+  } = useGetLoans(address as `0x${string}` | undefined, currentPage);
+
+  const loans = response?.loans ?? [];
+  const pagination = response?.pagination;
 
   return (
     <section className="mt-16 mb-8">
@@ -50,14 +56,47 @@ const LoansSection = () => {
           No loans were found for this connected wallet.
         </div>
       ) : (
-        <div className="grid gap-4">
-          {loans.map((loan) => (
-            <LoanCard
-              key={`${loan.user_address}-${loan.deadline}`}
-              loan={loan}
-            />
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 mb-6">
+            {loans.map((loan) => (
+              <LoanCard
+                key={`${loan.user_address}-${loan.deadline}`}
+                loan={loan}
+              />
+            ))}
+          </div>
+
+          {pagination && pagination.totalPages > 1 && (
+            <div className="flex items-center justify-between gap-4 pt-4 border-t border-zinc-700">
+              <div className="text-xs text-zinc-400">
+                Page {pagination.currentPage} of {pagination.totalPages} (
+                {pagination.totalLoans} total loans)
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setCurrentPage(Math.max(1, currentPage - 1))}
+                  disabled={currentPage === 1}
+                  className="flex items-center gap-1 rounded-lg border border-zinc-700 bg-zinc-900/50 px-3 py-1.5 text-xs font-semibold text-zinc-300 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-zinc-800/80"
+                >
+                  <ChevronLeft size={14} />
+                  Previous
+                </button>
+                <button
+                  onClick={() =>
+                    setCurrentPage(
+                      Math.min(pagination.totalPages, currentPage + 1),
+                    )
+                  }
+                  disabled={currentPage === pagination.totalPages}
+                  className="flex items-center gap-1 rounded-lg border border-zinc-700 bg-zinc-900/50 px-3 py-1.5 text-xs font-semibold text-zinc-300 disabled:cursor-not-allowed disabled:opacity-40 hover:bg-zinc-800/80"
+                >
+                  Next
+                  <ChevronRight size={14} />
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </section>
   );

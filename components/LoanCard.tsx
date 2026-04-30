@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useAccount } from "wagmi";
-import { useQueryClient } from "@tanstack/react-query";
 import { waitForTransactionReceipt } from "wagmi/actions";
 import { parseEventLogs } from "viem";
 import { LoanCardProps } from "@/lib/types";
@@ -23,12 +22,13 @@ import {
 import { CONTRACT_ABI } from "@/constants";
 import { config } from "@/config";
 import { repayFromContract } from "@/lib/actions/ContractAction";
+import { useRepayLoanMutation } from "@/lib/queries/loansQueries";
 
 const LoanCard = ({ loan }: LoanCardProps) => {
   const { address, isConnected } = useAccount();
-  const queryClient = useQueryClient();
   const [isRepaying, setIsRepaying] = useState(false);
   const [repayError, setRepayError] = useState<string | null>(null);
+  const repayLoanMutation = useRepayLoanMutation();
 
   const canRepay =
     loan.status === "borrowed" &&
@@ -81,25 +81,9 @@ const LoanCard = ({ loan }: LoanCardProps) => {
         );
       }
 
-      const syncResponse = await fetch("/api/loans/repay", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          user_address: address,
-          repaid_amount: Number(repayEvent.args.amount) / 1e6,
-        }),
-      });
-
-      if (!syncResponse.ok) {
-        throw new Error(
-          "Repay succeeded on-chain, but the database update failed.",
-        );
-      }
-
-      await queryClient.invalidateQueries({
-        queryKey: ["loans", address],
+      await repayLoanMutation.mutateAsync({
+        userAddress: address,
+        repaidAmount: Number(repayEvent.args.amount) / 1e6,
       });
     } catch (error) {
       setRepayError(
@@ -170,15 +154,17 @@ const LoanCard = ({ loan }: LoanCardProps) => {
             <button
               type="button"
               onClick={() => void handleRepay()}
-              disabled={!canRepay || isRepaying}
+              disabled={!canRepay || isRepaying || repayLoanMutation.isPending}
               className="flex items-center gap-1 rounded-3xl border border-gold bg-gold/10 px-3.5 py-1.5 text-[10px] font-semibold tracking-[0.3em] text-gold duration-500 hover:bg-gold/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {isRepaying ? (
+              {isRepaying || repayLoanMutation.isPending ? (
                 <LoaderCircle size={12} className="animate-spin" />
               ) : (
                 <BanknoteArrowUp size={12} />
               )}
-              {isRepaying ? "Repaying..." : "Repay loan"}
+              {isRepaying || repayLoanMutation.isPending
+                ? "Repaying..."
+                : "Repay loan"}
             </button>
           )}
           {repayError && (

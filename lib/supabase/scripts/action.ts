@@ -12,6 +12,7 @@ export type BorrowRecordInput = {
   total_debt: number;
   remaining_debt: number;
   deadline: number;
+  nonce: string;
   status: string;
   borrow_signature: `0x${string}`;
   permit_v: number;
@@ -29,13 +30,22 @@ export const createBorrowRecord = async (borrowInfo: BorrowRecordInput) => {
   try {
     const supabaseAdmin = getSupabaseAdminClient();
 
+    const nowSeconds = Math.floor(Date.now() / 1000);
+    const maxDeadlineSeconds = nowSeconds + 7 * 24 * 3600;
+    // Keep user-selected deadline from signed payload, but clamp to [now, now+7d].
+    const normalizedDeadlineSeconds = Math.min(
+      Math.max(borrowInfo.deadline, nowSeconds),
+      maxDeadlineSeconds,
+    );
+    console.log("borrowInfo: ", borrowInfo);
     const { data, error } = await supabaseAdmin
       .from("loans")
       .insert({
         user_address: borrowInfo.user_address.trim().toLowerCase(),
         total_debt: borrowInfo.total_debt,
         remaining_debt: borrowInfo.remaining_debt,
-        deadline: new Date(borrowInfo.deadline * 1000).toISOString(),
+        deadline: new Date(normalizedDeadlineSeconds * 1000).toISOString(),
+        nonce: borrowInfo.nonce,
         status: borrowInfo.status,
         borrow_signature: borrowInfo.borrow_signature,
         permit_v: borrowInfo.permit_v,
@@ -45,7 +55,7 @@ export const createBorrowRecord = async (borrowInfo: BorrowRecordInput) => {
       })
       .select("user_address")
       .single();
-
+    console.log("here");
     if (error) {
       console.log("Error creating borrow record:", error);
       return null;
@@ -67,6 +77,7 @@ export const syncRepayRecord = async (repayInfo: RepayRecordInput) => {
       .from("loans")
       .select("remaining_debt")
       .eq("user_address", normalizedAddress)
+      .eq("status", "borrowed")
       .maybeSingle();
 
     if (fetchError) {
@@ -92,6 +103,7 @@ export const syncRepayRecord = async (repayInfo: RepayRecordInput) => {
         is_processed: true,
       })
       .eq("user_address", normalizedAddress)
+      .eq("status", "borrowed")
       .select(
         "user_address,total_debt,remaining_debt,deadline,status,borrow_signature,permit_v,permit_r,permit_s,is_processed",
       )
