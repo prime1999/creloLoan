@@ -107,6 +107,7 @@ export const createBorrowIntentData = (
   deadline = Math.floor(Date.now() / 1000) + BORROW_INTENT_DURATION_SECONDS,
 ): BorrowIntentData => {
   const nonce = BigInt(generateNonce());
+  console.log(nonce);
 
   return {
     domain: {
