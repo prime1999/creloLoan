@@ -1,17 +1,25 @@
 "use client";
 
 import { useState } from "react";
-// icont-imports
+// Icon components used in the navbar UI
 import { Bell, CheckCircle } from "lucide-react";
-// wagmi-imports
+// wagmi imports: wallet helpers and types
 import type { Connector } from "wagmi";
 import {
+  // Provides the connected account and connection status
   useAccount,
+  // Returns the currently selected chain id
   useChainId,
+  // Connect helpers: list of connectors and connect action
   useConnect,
+  // Disconnect helpers
   useDisconnect,
+  // Typed-data signing helper (EIP-712)
   useSignTypedData,
 } from "wagmi";
+// Chain metadata for Base Sepolia used when attempting network switch/add
+import { baseSepolia } from "wagmi/chains";
+// Utility to wait for a transaction receipt after submitting a tx
 import { waitForTransactionReceipt } from "wagmi/actions";
 // shadcn-imports
 import {
@@ -31,7 +39,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Calendar } from "@/components/ui/calendar";
-import { Button } from "@/components/ui/button";
 import {
   createBorrowIntentData,
   createBorrowPermitData,
@@ -162,6 +169,74 @@ const Navbar = () => {
         // Await disconnect completion before starting next connection.
         await disconnectAsync();
       }
+      // Before connecting, if an injected provider exists, check its chain
+      // and attempt to switch/add Base Sepolia so the user connects on the
+      // expected network.
+      try {
+        // Use any injected provider (MetaMask, Brave, etc.) if available
+        const injected = (window as any)?.ethereum;
+        if (injected) {
+          // Ask the provider for its currently selected chain id (hex string)
+          const hexCurrent = await injected.request({ method: "eth_chainId" });
+          // Convert the hex chain id into a numeric id for comparison
+          const currentId =
+            typeof hexCurrent === "string"
+              ? parseInt(hexCurrent, 16)
+              : undefined;
+          // If the wallet is not already on Base Sepolia, attempt to switch it
+          if (currentId !== baseSepolia.id) {
+            // Prepare the hex chain id value required by wallet RPC methods
+            const hexChainId = `0x${baseSepolia.id.toString(16)}`;
+            try {
+              // Request the wallet to switch to Base Sepolia
+              await injected.request({
+                method: "wallet_switchEthereumChain",
+                params: [{ chainId: hexChainId }],
+              });
+            } catch (switchErr: any) {
+              // If the chain is not known to the wallet, providers commonly use code 4902
+              const isUnknownChain =
+                switchErr?.code === 4902 ||
+                /Unrecognized chain/i.test(switchErr?.message ?? "");
+              if (isUnknownChain) {
+                // Derive a reasonable RPC URL from the chain definition (best-effort)
+                const rpcUrl = ((baseSepolia as any).rpcUrls?.default
+                  ?.http?.[0] ??
+                  (baseSepolia as any).rpcUrls?.[0] ??
+                  "") as string;
+                // Ask the wallet to add Base Sepolia to the user's networks
+                await injected.request({
+                  method: "wallet_addEthereumChain",
+                  params: [
+                    {
+                      chainId: hexChainId,
+                      chainName: baseSepolia.name ?? "Base Sepolia",
+                      nativeCurrency: baseSepolia.nativeCurrency ?? {
+                        name: "ETH",
+                        symbol: "ETH",
+                        decimals: 18,
+                      },
+                      rpcUrls: rpcUrl ? [rpcUrl] : [],
+                    },
+                  ],
+                });
+                // After adding the chain, request a switch again
+                await injected.request({
+                  method: "wallet_switchEthereumChain",
+                  params: [{ chainId: hexChainId }],
+                });
+              } else {
+                // Re-throw unexpected errors so outer catch can handle/log them
+                throw switchErr;
+              }
+            }
+          }
+        }
+      } catch (err) {
+        console.error("Failed to switch/add Base Sepolia pre-connect:", err);
+        // Continue to connect anyway; wallets may still prompt to switch.
+      }
+
       // Connect using selected connector.
       await connectAsync({ connector });
       // Reset UI to collapsed state after success.
@@ -347,16 +422,19 @@ const Navbar = () => {
     setIsSigning(true);
 
     try {
-      // Build the borrow-intent typed data the contract will recover.
+      // Build the borrow-intent EIP-712 typed-data structure that the contract
+      // will recover and verify on-chain (amount, chainId, deadline, nonce).
       const intentData = createBorrowIntentData(
         amount,
         chainId,
         Math.floor(deadlineDate.getTime() / 1000),
       );
 
+      // Debug: show typed-data structure in dev console (harmless in prod).
       console.log({ intentData });
 
-      // Ask the wallet to sign the exact typed payload used on-chain.
+      // Prompt the user's wallet to sign the typed-data intent. This produces
+      // an EIP-712 signature string that the contract can later recover.
       const signature = await signTypedDataAsync({
         domain: intentData.domain,
         types: intentData.types,
@@ -364,7 +442,8 @@ const Navbar = () => {
         message: intentData.message,
       });
 
-      // Persist the signed intent locally so it can be shown in the UI.
+      // Save the signed intent in local UI state so it can be displayed and
+      // later attached to the on-chain borrow transaction.
       setSignedIntent({
         address: address as `0x${string}`,
         amount,
@@ -376,8 +455,8 @@ const Navbar = () => {
         timestamp: Math.floor(Date.now() / 1000),
       });
 
-      // Build the structured ERC-2612 permit payload (typed-data) and
-      // advance to the permit step so the user can sign it next.
+      // Prepare the ERC-2612 permit typed-data payload so the user can sign
+      // a permit authorizing the contract to transfer USDC on their behalf.
       setPermitData(
         createBorrowPermitData(
           address as `0x${string}`,
@@ -385,6 +464,7 @@ const Navbar = () => {
           amount,
         ),
       );
+      // Move the dialog to the permit step so the UI asks the user to sign it.
       setDialogStep("permit");
     } catch (error) {
       // User rejected signing or a runtime error occurred.
@@ -419,7 +499,8 @@ const Navbar = () => {
     setDialogStep("permit-signing");
 
     try {
-      // ERC-2612 permit signing using EIP-712.
+      // Build and sign the ERC-2612 permit using EIP-712 so the contract can
+      // later call `permit`/`transferFrom` for the approved amount.
       const signature = await signTypedDataAsync({
         domain: {
           name: USDC_PERMIT_DOMAIN.name,
@@ -446,15 +527,16 @@ const Navbar = () => {
         },
       });
 
-      // Parse signature into v, r, s components. Keep a local copy so the
-      // values are available immediately for the API payload.
+      // Split the returned signature string into v, r, s so it can be passed to
+      // the contract's `borrow` function which expects those fields.
       const parsedPermitSignature = {
         ...splitSignature(signature as `0x${string}`),
         deadline: permitData.deadline,
       };
       setPermitSignature(parsedPermitSignature);
 
-      // Submit the borrow transaction using the signed borrow-intent signature.
+      // With the signed intent and permit ready, call into the contract flow
+      // which simulates and then writes the `borrow` transaction.
       const borrowHash = await borrowFromContract({
         borrower: signedIntent.address,
         amount: permitData.value,
@@ -464,22 +546,25 @@ const Navbar = () => {
       });
       setBorrowTxHash(borrowHash);
 
-      // Wait for the transaction to be mined and confirm the Borrowed event.
+      // Wait for the transaction to be mined and obtain the receipt.
       const receipt = await waitForTransactionReceipt(config, {
         hash: borrowHash,
       });
+      // Parse the logs for the `Borrowed` event emitted by our contract.
       const borrowEvents = parseEventLogs({
         abi: CONTRACT_ABI,
         logs: receipt.logs,
         eventName: "Borrowed",
       });
 
+      // Ensure at least one Borrowed event was found in the receipt logs.
       if (!borrowEvents.length) {
         throw new Error(
           "Borrowed event was not found in the transaction receipt.",
         );
       }
 
+      // Grab the first parsed event and normalize typing for access.
       const borrowEvent = borrowEvents[0] as unknown as {
         args: {
           borrower: `0x${string}`;
@@ -489,6 +574,8 @@ const Navbar = () => {
       };
       const eventArgs = borrowEvent.args;
 
+      // Verify the event's borrower matches the address that signed the intent.
+      // This protects against mismatched or replayed signatures.
       if (
         eventArgs.borrower.toLowerCase() !== signedIntent.address.toLowerCase()
       ) {
@@ -498,22 +585,29 @@ const Navbar = () => {
       }
 
       // Persist the successful borrow in Supabase after the on-chain event is emitted.
+      // Persist on-chain-confirmed borrow into our backend. The server will
+      // store the borrower, numeric amounts (convert from token base units),
+      // on-chain deadline, nonce and both intent & permit signature pieces.
       const syncResponse = await fetch("/api/borrow/sync", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           user_address: signedIntent.address,
+          // eventArgs.amount is in USDC base units (1e6), convert to float
           total_debt: Number(eventArgs.amount) / 1e6,
           remaining_debt: Number(eventArgs.amount) / 1e6,
+          // deadline preserved as unix seconds
           deadline: Number(eventArgs.deadline),
+          // nonce used on-chain for the signed intent
           nonce: signedIntent.nonce.toString(),
           status: "borrowed",
+          // store the original typed-data intent signature (hex)
           borrow_signature: signedIntent.signature,
+          // permit signature split components used by contract call
           permit_v: parsedPermitSignature.v,
           permit_r: parsedPermitSignature.r,
           permit_s: parsedPermitSignature.s,
+          // mark the record as processed since the event was observed
           is_processed: true,
         }),
       });
@@ -687,7 +781,9 @@ const Navbar = () => {
                     disabled={isCheckingEligibility}
                     className="w-full rounded-md border border-zinc-700 bg-transparent px-3 py-2 text-xs font-poppins text-zinc-200 hover:bg-zinc-800"
                   >
-                    {isCheckingEligibility ? "Checking..." : "Check Eligibility"}
+                    {isCheckingEligibility
+                      ? "Checking..."
+                      : "Check Eligibility"}
                   </button>
                 </div>
               </div>
