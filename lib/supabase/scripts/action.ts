@@ -70,6 +70,7 @@ export const createBorrowRecord = async (borrowInfo: BorrowRecordInput) => {
 
 export const syncRepayRecord = async (repayInfo: RepayRecordInput) => {
   try {
+    console.log({ repayInfo });
     const supabaseAdmin = getSupabaseAdminClient();
     const normalizedAddress = repayInfo.user_address.trim().toLowerCase();
 
@@ -79,6 +80,7 @@ export const syncRepayRecord = async (repayInfo: RepayRecordInput) => {
       .eq("user_address", normalizedAddress)
       .eq("status", "borrowed")
       .maybeSingle();
+    console.log({ existingLoan });
 
     if (fetchError) {
       console.log("Error reading loan before repay sync:", fetchError);
@@ -108,7 +110,7 @@ export const syncRepayRecord = async (repayInfo: RepayRecordInput) => {
         "user_address,total_debt,remaining_debt,deadline,status,borrow_signature,permit_v,permit_r,permit_s,is_processed",
       )
       .maybeSingle();
-
+    console.log({ data });
     if (error) {
       console.log("Error updating loan after repay:", error);
       return null;

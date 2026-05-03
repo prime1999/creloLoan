@@ -101,6 +101,9 @@ const Navbar = () => {
     | "permit-confirmation"
   >("amount");
 
+  // Mobile menu state for small screens
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
   // ERC-2612 permit signing state.
   // Holds the structured permit data used to build the EIP-712 typed-data message.
   const [permitData, setPermitData] = useState<BorrowPermitData | null>(null);
@@ -537,9 +540,9 @@ const Navbar = () => {
   };
 
   return (
-    <nav className="px-8 py-4 border-b border-zinc-800 font-poppins">
-      <div className="w-10/12 mx-auto flex items-center justify-between">
-        <div className="w-full flex items-center gap-8">
+    <nav className="px-4 sm:px-8 py-4 border-b border-zinc-800 font-poppins">
+      <div className="w-11/12 sm:w-10/12 mx-auto flex flex-col sm:flex-row items-center justify-between gap-4 sm:gap-0">
+        <div className="w-full flex items-center gap-8 justify-start">
           <div className="flex items-center gap-2">
             <div className="flex flex-col gap-0.5">
               {[...Array(4)].map((_, i) => (
@@ -550,7 +553,7 @@ const Navbar = () => {
               Creloloan
             </span>
           </div>
-          <div className="flex gap-6 text-xs font-medium">
+          <div className="hidden sm:flex gap-6 text-xs font-medium">
             <a href="#" className="text-zinc-400">
               Earn
             </a>
@@ -564,6 +567,18 @@ const Navbar = () => {
         </div>
 
         <div className="flex items-center gap-4">
+          <button
+            type="button"
+            onClick={() => setMobileMenuOpen((v) => !v)}
+            className="sm:hidden p-2 rounded-md bg-white/5 text-zinc-200"
+            aria-label="Toggle menu"
+          >
+            <div className="space-y-1">
+              <span className="block w-5 h-0.5 bg-zinc-200" />
+              <span className="block w-5 h-0.5 bg-zinc-200" />
+              <span className="block w-5 h-0.5 bg-zinc-200" />
+            </div>
+          </button>
           {/* <div className="bg-zinc-950 px-3 py-1.5 rounded-full border border-zinc-800 text-xs font-mono">
             0x7616...7f7e
           </div> */}
@@ -642,6 +657,42 @@ const Navbar = () => {
               )}
             </PopoverContent>
           </Popover>
+          {/* Mobile menu content */}
+          {mobileMenuOpen && (
+            <div className="sm:hidden mt-3 w-full">
+              <div className="flex flex-col gap-3 bg-zinc-950/80 rounded-lg p-3 border border-zinc-800">
+                <div className="flex gap-4">
+                  <a href="#" className="text-zinc-400 text-sm">
+                    Earn
+                  </a>
+                  <a href="#" className="text-gold font-semibold text-sm">
+                    Loans
+                  </a>
+                </div>
+                <div className="flex flex-col gap-2">
+                  <button
+                    type="button"
+                    onClick={handleWalletButtonClick}
+                    className="w-full bg-black/90 hover:bg-black/70 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer text-white text-xs font-poppins p-2 rounded-md"
+                  >
+                    {isConnected
+                      ? shortAddress
+                      : isPending
+                        ? "Connecting..."
+                        : "Connect Wallet"}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleCheckEligibility()}
+                    disabled={isCheckingEligibility}
+                    className="w-full rounded-md border border-zinc-700 bg-transparent px-3 py-2 text-xs font-poppins text-zinc-200 hover:bg-zinc-800"
+                  >
+                    {isCheckingEligibility ? "Checking..." : "Check Eligibility"}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
           <div className="w-72 flex flex-col items-start gap-1.5 text-xs text-zinc-300 font-semibold">
             <button
               type="button"
