@@ -13,7 +13,7 @@ const page = () => {
       <Navbar />
       <main className="w-10/12 mx-auto px-8 pt-12">
         {/* --- HERO SECTION --- */}
-        <section className="grid grid-cols-2 gap-6 items-center mb-16">
+        <section className="flex max-md:flex-col justify-between max-md:justify-center items-center gap-6 mb-16">
           <div>
             <h1 className="text-5xl font-bold font-fjalla leading-[1.1] mb-6">
               Borrow Smarter
