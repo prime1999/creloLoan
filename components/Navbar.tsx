@@ -635,7 +635,7 @@ const Navbar = () => {
 
   return (
     <nav className="px-4 sm:px-8 py-4 border-b border-zinc-800 font-poppins">
-      <div className="w-11/12 sm:w-10/12 mx-auto flex sm:flex-col items-center justify-between gap-4">
+      <div className="w-11/12 sm:w-10/12 mx-auto flex items-center justify-between gap-4">
         <div className="w-full flex items-center gap-8 justify-start">
           <div className="flex items-center gap-2">
             <div className="flex flex-col gap-0.5">
@@ -666,7 +666,7 @@ const Navbar = () => {
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen((v) => !v)}
-                className="md:hidden p-2 rounded-md bg-white/5 text-zinc-200"
+                className="md:hidden p-2 rounded-md bg-white/5 text-zinc-200 hover:bg-white/10 transition-colors"
                 aria-label="Toggle menu"
               >
                 <div className="space-y-1">
@@ -676,7 +676,10 @@ const Navbar = () => {
                 </div>
               </button>
             </PopoverTrigger>
-            <PopoverContent className="w-64 bg-black/90 text-white" align="end">
+            <PopoverContent
+              className="w-56 sm:w-64 bg-black/90 text-white"
+              align="end"
+            >
               <div className="md:hidden mt-3 w-full">
                 <div className="flex flex-col gap-3 bg-zinc-950/80 rounded-lg p-3 border border-zinc-800">
                   <div className="flex flex-col items-center justify-center gap-4">
@@ -726,7 +729,7 @@ const Navbar = () => {
                 type="button"
                 onClick={handleWalletButtonClick}
                 disabled={isPending || isDisconnecting}
-                className="hidden lg:block w-36 bg-black/90 hover:bg-black/70 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer text-white text-xs font-poppins p-2 rounded-md"
+                className="hidden lg:block w-32 xl:w-36 bg-black/90 hover:bg-black/70 disabled:opacity-60 disabled:cursor-not-allowed cursor-pointer text-white text-xs font-poppins p-2 rounded-md truncate"
               >
                 {isConnected
                   ? shortAddress
@@ -736,7 +739,10 @@ const Navbar = () => {
               </button>
             </PopoverTrigger>
 
-            <PopoverContent className="w-64 bg-black/90 text-white" align="end">
+            <PopoverContent
+              className="w-56 sm:w-64 bg-black/90 text-white"
+              align="end"
+            >
               {showConnectorPicker || !isConnected ? (
                 <>
                   <PopoverHeader>
@@ -831,7 +837,7 @@ const Navbar = () => {
               </div>
             </div>
           )} */}
-          <div className="w-72 hidden lg:flex flex-col items-start gap-1.5 text-xs text-zinc-300 font-semibold">
+          <div className="w-60 lg:w-72 hidden lg:flex flex-col items-start gap-1.5 text-xs text-zinc-300 font-semibold">
             <button
               type="button"
               onClick={() => void handleCheckEligibility()}
@@ -866,7 +872,7 @@ const Navbar = () => {
             )}
           </div>
           <div className="flex gap-3 text-zinc-400">
-            <Bell size={18} />
+            <Bell size={16} className="sm:w-5 sm:h-5" />
           </div>
         </div>
       </div>
